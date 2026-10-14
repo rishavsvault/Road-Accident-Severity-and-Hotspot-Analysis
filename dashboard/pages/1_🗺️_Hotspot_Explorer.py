@@ -48,7 +48,7 @@ def get_color(tier):
         return [59, 130, 246, 160]  # Blue
 
 filtered_df["color"] = filtered_df["priority_tier"].apply(get_color)
-filtered_df["radius"] = filtered_df["segment_risk_score"].clip(5, 50) * 12
+filtered_df["radius"] = filtered_df["segment_risk_score"].clip(5, 100) * 6
 
 # Pydeck Map Layer
 view_state = pdk.ViewState(
@@ -86,7 +86,7 @@ deck = pdk.Deck(
             <b>Segment:</b> {segment_id}<br/>
             <b>Corridor:</b> {corridor_name}<br/>
             <b>Priority:</b> {priority_tier}<br/>
-            <b>Risk Score:</b> {segment_risk_score}<br/>
+            <b>Risk Score:</b> {segment_risk_score} / 100<br/>
             <b>Total Crashes:</b> {total_crashes} (Fatal: {fatal_crashes}, Grievous: {grievous_crashes})<br/>
             <b>Speed Limit:</b> {speed_limit} km/h | <b>Lanes:</b> {lanes}
         """,

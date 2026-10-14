@@ -37,7 +37,7 @@ seg_data = df_segments[df_segments["segment_id"] == selected_seg_id].iloc[0]
 col1, col2, col3, col4, col5 = st.columns(5)
 col1.metric("Corridor", seg_data["corridor_name"])
 col2.metric("Priority Tier", seg_data["priority_tier"])
-col3.metric("Risk Score", f"{seg_data['segment_risk_score']}")
+col3.metric("Risk Score", f"{seg_data['segment_risk_score']} / 100")
 col4.metric("Total Crashes", f"{seg_data['total_crashes']}")
 col5.metric("Fatal Crashes", f"{seg_data['fatal_crashes']}", delta_color="inverse")
 

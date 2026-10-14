@@ -18,7 +18,19 @@ where:
 - $w(c)$ is the severity weighting: $\text{Fatal} = 10$, $\text{Grievous} = 3$, $\text{Minor} = 1$
 - $|S_i|$ is the segment length in meters.
 
-### 2.3 Statistical Hotspot Significance: Getis-Ord Gi*
+### 2.3 Length-Normalized & Standardized Segment Risk Score (0–100)
+To establish an intuitive, comparable metric across road corridors of variable geometries, the raw severity-weighted crash density per 100 meters is standardized onto a continuous 0–100 scale:
+
+$$\text{Raw Score}(S_i) = \frac{10 \cdot N_{\text{fatal}} + 3 \cdot N_{\text{grievous}} + 1 \cdot N_{\text{minor}}}{\max(50, |S_i|) / 100}$$
+
+$$\text{Standardized Risk Score}(S_i) = \left( \frac{\text{Raw Score}(S_i)}{\max_{j} \text{Raw Score}(S_j)} \right) \times 100 \in [0, 100]$$
+
+Where:
+- $0.0$: Baseline corridor with zero crash occurrences.
+- $100.0$: Peak hazardous blackspot corridor in the KMDA network.
+- **Priority Tiers**: High ($\ge 85^{\text{th}}$ percentile), Medium ($50^{\text{th}}–85^{\text{th}}$ percentile), Low ($< 50^{\text{th}}$ percentile).
+
+### 2.4 Statistical Hotspot Significance: Getis-Ord Gi*
 Local spatial autocorrelation is measured using the Getis-Ord $G_i^*$ statistic:
 
 $$G_i^* = \frac{\sum_{j=1}^n w_{ij} x_j - \bar{X}\sum_{j=1}^n w_{ij}}{S \sqrt{\frac{n\sum_{j=1}^n w_{ij}^2 - (\sum_{j=1}^n w_{ij})^2}{n - 1}}}$$

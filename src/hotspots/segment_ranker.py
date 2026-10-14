@@ -34,7 +34,15 @@ def rank_and_tier_segments(segments_df: pd.DataFrame,
         merged["grievous_crashes"] * 3.0 +
         merged["minor_crashes"] * 1.0
     )
-    merged["segment_risk_score"] = np.round(weighted_sum / length_adj, 2)
+    raw_score = weighted_sum / length_adj
+    merged["raw_risk_score"] = np.round(raw_score, 2)
+
+    # Standardize to 0 - 100 scale (0 = zero risk, 100 = peak corridor risk in Kolkata)
+    max_raw = raw_score.max()
+    if max_raw > 0:
+        merged["segment_risk_score"] = np.round((raw_score / max_raw) * 100.0, 1)
+    else:
+        merged["segment_risk_score"] = 0.0
 
     # Risk Tiers: High (top 15%), Medium (next 35%), Low (remaining 50%)
     high_thresh = merged["segment_risk_score"].quantile(0.85)
