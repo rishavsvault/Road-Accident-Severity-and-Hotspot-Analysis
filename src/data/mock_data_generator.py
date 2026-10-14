@@ -135,8 +135,8 @@ def generate_kolkata_crashes(n_samples: int = 3500,
         )[0]
         pedestrian_involved = 1 if (primary_vehicle == "Pedestrian-Direct" or random.random() < 0.25) else 0
 
-        # Severity probability logic: Night + Speed + Monsoon/Rain elevates grievous/fatal risk
-        is_night = 1 if (hour >= 21 or hour <= 5) else 0
+        # Severity probability logic: Night (18:00 - 06:00) + Speed + Monsoon/Rain elevates risk
+        is_night = 1 if (hour >= 18 or hour < 6) else 0
         is_monsoon = 1 if month in [6, 7, 8, 9] else 0
 
         p_fatal = 0.08

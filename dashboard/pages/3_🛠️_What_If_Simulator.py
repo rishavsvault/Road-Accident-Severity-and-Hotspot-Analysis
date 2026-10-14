@@ -34,7 +34,7 @@ with c2:
     has_median = st.selectbox("Physical Median Barrier?", [("Yes / Concrete Barrier", 1), ("No Median", 0)], format_func=lambda x: x[0])[1]
 
 with c3:
-    is_night = st.selectbox("Time of Day", [("Night (22:00 - 05:00)", 1), ("Daytime (06:00 - 21:00)", 0)], format_func=lambda x: x[0])[1]
+    is_night = st.selectbox("Time of Day", [("Night (18:00 - 06:00 / 6 PM - 6 AM)", 1), ("Daytime (06:00 - 18:00 / 6 AM - 6 PM)", 0)], format_func=lambda x: x[0])[1]
     is_monsoon = st.selectbox("Season", [("Monsoon Season", 1), ("Dry / Winter Season", 0)], format_func=lambda x: x[0])[1]
 
 with c4:

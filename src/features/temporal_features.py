@@ -15,8 +15,8 @@ def extract_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
     df_feat["feat_hour_sin"] = np.sin(2 * np.pi * df_feat["feat_hour"] / 24.0)
     df_feat["feat_hour_cos"] = np.cos(2 * np.pi * df_feat["feat_hour"] / 24.0)
 
-    # Night flag (21:00 to 05:00)
-    df_feat["feat_is_night"] = ((df_feat["feat_hour"] >= 21) | (df_feat["feat_hour"] <= 5)).astype(int)
+    # Night flag: 18:00 to 06:00 (Daytime is 06:00 to 18:00)
+    df_feat["feat_is_night"] = ((df_feat["feat_hour"] >= 18) | (df_feat["feat_hour"] < 6)).astype(int)
 
     # Monsoon season in Kolkata (June through September)
     df_feat["feat_is_monsoon"] = ts.dt.month.isin([6, 7, 8, 9]).astype(int)
