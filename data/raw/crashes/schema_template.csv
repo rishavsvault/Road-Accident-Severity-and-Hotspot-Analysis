@@ -1,0 +1,2 @@
+crash_id,timestamp,latitude,longitude,reported_corridor,spatial_zone_id,ward_number,severity_code,severity_label,primary_vehicle,pedestrian_involved,reported_speed_limit,weather_condition
+SAMPLE-0001,2024-01-01 12:00:00,22.5726,88.3639,EM Bypass,Zone_East,58,0,Minor / Non-Injury,Two-Wheeler,0,50,Clear

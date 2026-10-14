@@ -1,0 +1,37 @@
+project:
+  name: "Explainable Road Accident Severity & Hotspot Analysis for Kolkata"
+  client: "Kolkata Metropolitan Development Authority (KMDA)"
+  version: "1.0.0"
+  seed: 42
+
+spatial:
+  geographic_area: "Kolkata, West Bengal, India"
+  bounding_box:
+    north: 22.6500
+    south: 22.4500
+    east: 88.4500
+    west: 88.2500
+  target_crs: "EPSG:32645"  # UTM Zone 45N for metric calculations in Kolkata
+  display_crs: "EPSG:4326"  # WGS84 for leaflet/pydeck maps
+  default_center: [22.5726, 88.3639]  # Kolkata central coordinates
+
+severity:
+  classes:
+    0: "Minor / Non-Injury"
+    1: "Grievous Injury"
+    2: "Fatal"
+  weights:
+    0: 1.0
+    1: 3.0
+    2: 10.0
+
+paths:
+  raw_crashes: "data/raw/crashes/crashes.csv"
+  raw_boundaries: "data/raw/boundaries/kmc_wards.geojson"
+  raw_weather: "data/raw/weather/historical_weather.csv"
+  osm_graph: "data/interim/kolkata_osm_graph.graphml"
+  cleaned_crashes: "data/interim/cleaned_crashes.parquet"
+  crash_level_features: "data/processed/crash_level_features.parquet"
+  segment_risk_tiers: "data/processed/segment_risk_tiers.geojson"
+  hotspots_geojson: "data/processed/hotspots_network_kde.geojson"
+  top_blackspots_csv: "data/processed/kmda_top20_blackspots.csv"

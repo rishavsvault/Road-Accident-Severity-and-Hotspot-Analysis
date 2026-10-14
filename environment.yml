@@ -1,0 +1,33 @@
+name: kolkata_accident_risk
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - gdal
+  - geos
+  - proj
+  - geopandas
+  - osmnx
+  - networkx
+  - shapely
+  - pyproj
+  - numpy
+  - pandas
+  - scipy
+  - scikit-learn
+  - xgboost
+  - shap
+  - optuna
+  - matplotlib
+  - seaborn
+  - plotly
+  - streamlit
+  - pydeck
+  - folium
+  - pyarrow
+  - pyyaml
+  - requests
+  - pip
+  - pip:
+    - streamlit-folium

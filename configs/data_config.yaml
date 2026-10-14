@@ -1,0 +1,44 @@
+osm:
+  network_type: "drive"
+  custom_filter: '["highway"~"motorway|trunk|primary|secondary|tertiary|unclassified|residential"]'
+  segment_length_meters: 300  # Split road graph into segments ~200-500m
+  buffer_snap_meters: 35.0    # Distance within which a crash point snaps to a segment
+
+weather_api:
+  base_url: "https://archive-api.open-meteo.com/v1/archive"
+  latitude: 22.5726
+  longitude: 88.3639
+  timezone: "Asia/Kolkata"
+  hourly_variables:
+    - "temperature_2m"
+    - "precipitation"
+    - "rain"
+    - "visibility"
+    - "relative_humidity_2m"
+
+kolkata_landmarks:
+  corridors:
+    - name: "EM Bypass (Eastern Metropolitan Bypass)"
+      type: "primary"
+      speed_limit: 60
+    - name: "VIP Road (Kazi Nazrul Islam Avenue)"
+      type: "primary"
+      speed_limit: 60
+    - name: "AJC Bose Road / Flyover"
+      type: "primary"
+      speed_limit: 50
+    - name: "Strand Road"
+      type: "secondary"
+      speed_limit: 40
+    - name: "Diamond Harbour Road"
+      type: "primary"
+      speed_limit: 50
+    - name: "Belghoria Expressway"
+      type: "trunk"
+      speed_limit: 70
+    - name: "Park Street"
+      type: "tertiary"
+      speed_limit: 30
+    - name: "Raja SC Mullick Road (Jadavpur)"
+      type: "secondary"
+      speed_limit: 40

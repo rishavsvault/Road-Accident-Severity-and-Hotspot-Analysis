@@ -1,0 +1,91 @@
+# ==========================================
+# Confidential Data Exclusions
+# ==========================================
+# Protect all raw crash dumps, police FIR data, coordinates, and weather records
+data/raw/crashes/*
+!data/raw/crashes/.gitkeep
+!data/raw/crashes/schema_template.csv
+
+data/raw/weather/*
+!data/raw/weather/.gitkeep
+
+data/raw/boundaries/*
+!data/raw/boundaries/.gitkeep
+
+# Interim & Processed large binaries and tabular caches
+data/interim/*
+!data/interim/.gitkeep
+
+data/processed/*
+!data/processed/.gitkeep
+
+# Catch-all for data files and trained models
+*.parquet
+*.joblib
+*.pkl
+*.pickle
+*.h5
+*.sqlite3
+*.db
+*.csv.gz
+
+# Secrets, Credentials & Local Configs
+.env
+*.env
+.env.*
+secrets.yaml
+secrets.json
+*.key
+*.pem
+*.token
+credentials.json
+
+# ==========================================
+# Virtual Environments & Packages
+# ==========================================
+.venv/
+venv/
+env/
+ENV/
+build/
+dist/
+wheels/
+*.egg-info/
+*.egg
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# ==========================================
+# Geospatial, Cache & OSM
+# ==========================================
+*.graphml
+*.osm
+.osmnet_cache/
+*.pbf
+
+# ==========================================
+# Logs & Diagnostics
+# ==========================================
+*.log
+logs/
+.system_generated/
+
+# ==========================================
+# Notebooks & IDE
+# ==========================================
+.ipynb_checkpoints/
+*-checkpoint.ipynb
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ==========================================
+# OS Artifacts
+# ==========================================
+.DS_Store
+Thumbs.db
+desktop.ini

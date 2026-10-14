@@ -1,0 +1,40 @@
+interventions:
+  - id: "INT_LIGHTING"
+    trigger_features: ["is_night", "lit_unknown_or_no", "visibility_low"]
+    category: "Electrical & Illumination Infrastructure"
+    authority: "KMDA / KMC Lighting Department"
+    recommended_action: "Install high-mast LED smart illumination with photocell sensors and 30m spacing."
+    estimated_cost_tier: "Medium"
+    expected_fatality_reduction: "20-35% in nighttime severe crashes"
+
+  - id: "INT_SPEED_CALMING"
+    trigger_features: ["speed_limit_gt_50", "is_straight_corridor"]
+    category: "Traffic Calming & Enforcement"
+    authority: "Kolkata Traffic Police & KMDA Engineering"
+    recommended_action: "Deploy automated speed enforcement cameras, thermoplastic rumble strips, and optical speed bars."
+    estimated_cost_tier: "Low"
+    expected_fatality_reduction: "15-28% in overspeeding incidents"
+
+  - id: "INT_PEDESTRIAN_SAFETY"
+    trigger_features: ["junction_density_high", "pedestrian_involved", "lanes_gt_4"]
+    category: "Non-Motorized Transport (NMT) Protection"
+    authority: "KMDA Urban Mobility Wing"
+    recommended_action: "Construct grade-separated pedestrian foot overbridge (FOB) or signalized raised tabletop crosswalk with refuge island."
+    estimated_cost_tier: "High"
+    expected_fatality_reduction: "40-55% in pedestrian fatal impacts"
+
+  - id: "INT_DRAINAGE_SURFACE"
+    trigger_features: ["rolling_rain_3h_high", "is_monsoon"]
+    category: "Road Surface & Stormwater Drainage"
+    authority: "KMDA Civil & Drainage Division"
+    recommended_action: "Apply high-friction micro-surfacing (HFST) and augment curb-inlet drainage to prevent hydroplaning and waterlogging."
+    estimated_cost_tier: "Medium"
+    expected_fatality_reduction: "25-30% in wet-weather skids"
+
+  - id: "INT_MEDIAN_BARRIER"
+    trigger_features: ["has_median_no", "lanes_gt_2", "speed_limit_gt_40"]
+    category: "Physical Roadway Separation"
+    authority: "KMDA Roads & Highways Directorate"
+    recommended_action: "Install continuous reinforced concrete New Jersey crash barriers to eliminate head-on crossover collisions."
+    estimated_cost_tier: "Medium-High"
+    expected_fatality_reduction: "50-70% in head-on collisions"
