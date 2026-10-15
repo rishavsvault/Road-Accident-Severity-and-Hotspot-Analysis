@@ -34,21 +34,22 @@ def calculate_network_kde(segments_df: pd.DataFrame,
     # Weights by severity: Fatal=10, Grievous=3, Minor=1
     sev_weights = snapped_crashes_df["severity_code"].map({2: 10.0, 1: 3.0, 0: 1.0}).values
 
+    from scipy.spatial import cKDTree
+    tree = cKDTree(crash_coords)
+    neighbors = tree.query_ball_point(seg_coords, r=bandwidth_meters)
+
     kde_scores = np.zeros(len(df_res))
+    lengths = df_res["length_meters"].clip(lower=50.0).values if "length_meters" in df_res.columns else np.full(len(df_res), 300.0)
 
     for i in range(len(df_res)):
-        p = seg_coords[i]
-        dists = np.sqrt(np.sum((crash_coords - p)**2, axis=1))
-
-        # Epanechnikov kernel within bandwidth
-        in_band = dists <= bandwidth_meters
-        if np.any(in_band):
-            u = dists[in_band] / bandwidth_meters
+        idx = neighbors[i]
+        if len(idx) > 0:
+            p = seg_coords[i]
+            dists = np.linalg.norm(crash_coords[idx] - p, axis=1)
+            u = dists / bandwidth_meters
             kernel_vals = 0.75 * (1.0 - u**2)
-            weighted_density = np.sum(kernel_vals * sev_weights[in_band])
-            # Normalize by segment length
-            seg_len = max(50.0, float(df_res.iloc[i].get("length_meters", 300.0)))
-            kde_scores[i] = (weighted_density / seg_len) * 1000.0
+            weighted_density = np.sum(kernel_vals * sev_weights[idx])
+            kde_scores[i] = (weighted_density / lengths[i]) * 1000.0
 
     df_res["net_kde_score"] = np.round(kde_scores, 3)
     df_res["net_kde_percentile"] = np.round(df_res["net_kde_score"].rank(pct=True) * 100, 1)
