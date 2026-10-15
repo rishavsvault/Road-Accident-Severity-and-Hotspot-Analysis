@@ -137,7 +137,10 @@ class KMDAInterventionEngine:
         """
         base_fatal = float(p_baseline[2])
         sim_fatal = float(p_simulated[2])
-        ml_fatal_delta_pct = (sim_fatal - base_fatal) * 100.0
+        safe_base = max(base_fatal, 0.001)
+
+        # Observational ML relative deviation from baseline
+        ml_fatal_deviation_pct = ((sim_fatal - base_fatal) / safe_base) * 100.0
 
         # Calculate empirical CMF compound factor
         cmf_fatal_multiplier = 1.0
@@ -199,19 +202,23 @@ class KMDAInterventionEngine:
             cmf_fatal_multiplier *= 0.83
             cmf_notes.append("Dry Surface Pavement Recovery: CMF 0.83 (-17% skid risk on dry asphalt)")
 
-        # Causal expected fatal probability
-        causal_expected_fatal = float(np.clip(base_fatal * cmf_fatal_multiplier, 0.01, 0.95))
-        causal_fatal_delta_pct = (causal_expected_fatal - base_fatal) * 100.0
+        # Causal expected fatal probability and deviation from baseline
+        causal_expected_fatal = float(np.clip(base_fatal * cmf_fatal_multiplier, 0.001, 0.999))
+        causal_fatal_deviation_pct = ((causal_expected_fatal - base_fatal) / safe_base) * 100.0
 
-        # Consensus consensus weighted estimate: 50% ML + 50% Empirical CMF
-        consensus_fatal_delta_pct = 0.50 * ml_fatal_delta_pct + 0.50 * causal_fatal_delta_pct
+        # Consensus expected fatal risk and blended deviation from baseline
+        consensus_expected_fatal = 0.50 * sim_fatal + 0.50 * causal_expected_fatal
+        consensus_fatal_delta_pct = ((consensus_expected_fatal - base_fatal) / safe_base) * 100.0
+        consensus_abs_delta_pct = (consensus_expected_fatal - base_fatal) * 100.0
 
         return {
             "ml_predicted_fatal_pct": round(sim_fatal * 100.0, 1),
-            "ml_fatal_delta_pct": round(ml_fatal_delta_pct, 1),
+            "ml_fatal_delta_pct": round(ml_fatal_deviation_pct, 1),
             "cmf_compound_multiplier": round(cmf_fatal_multiplier, 3),
-            "causal_fatal_delta_pct": round(causal_fatal_delta_pct, 1),
+            "causal_fatal_delta_pct": round(causal_fatal_deviation_pct, 1),
             "consensus_fatal_delta_pct": round(consensus_fatal_delta_pct, 1),
+            "consensus_expected_fatal_pct": round(consensus_expected_fatal * 100.0, 1),
+            "consensus_abs_delta_pct": round(consensus_abs_delta_pct, 1),
             "cmf_citations": cmf_notes if cmf_notes else ["Baseline operational conditions maintained"]
         }
 

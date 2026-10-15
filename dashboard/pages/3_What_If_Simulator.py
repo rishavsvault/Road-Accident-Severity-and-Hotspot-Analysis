@@ -328,7 +328,8 @@ with res_col2:
             return KMDAInterventionEngine.estimate_causal_countermeasure_impact(b_dict, s_dict, p_base, p_sim)
         base_fatal = float(p_base[2])
         sim_fatal = float(p_sim[2])
-        ml_delta = (sim_fatal - base_fatal) * 100.0
+        safe_base = max(base_fatal, 0.001)
+        ml_delta = ((sim_fatal - base_fatal) / safe_base) * 100.0
         cmf_mult = 1.0
         cites = []
         old_lit = int(b_dict.get("is_lit", b_dict.get("feat_is_lit", 1)))
@@ -363,14 +364,19 @@ with res_col2:
             delta_str = f"-{round((1-v_cmf)*100)}%" if v_cmf < 1 else f"+{round((v_cmf-1)*100)}%"
             cites.append(f"Elvik Speed Power Model: CMF {v_cmf:.2f} ({delta_str} impact from {int(old_v)} to {int(new_v)} km/h)")
 
-        causal_fatal = float(np.clip(base_fatal * cmf_mult, 0.01, 0.95))
-        causal_delta = (causal_fatal - base_fatal) * 100.0
+        causal_fatal = float(np.clip(base_fatal * cmf_mult, 0.001, 0.999))
+        causal_delta = ((causal_fatal - base_fatal) / safe_base) * 100.0
+        consensus_fatal = 0.50 * sim_fatal + 0.50 * causal_fatal
+        consensus_delta = ((consensus_fatal - base_fatal) / safe_base) * 100.0
+
         return {
             "ml_predicted_fatal_pct": round(sim_fatal * 100.0, 1),
             "ml_fatal_delta_pct": round(ml_delta, 1),
             "cmf_compound_multiplier": round(cmf_mult, 3),
             "causal_fatal_delta_pct": round(causal_delta, 1),
-            "consensus_fatal_delta_pct": round(0.5 * ml_delta + 0.5 * causal_delta, 1),
+            "consensus_fatal_delta_pct": round(consensus_delta, 1),
+            "consensus_expected_fatal_pct": round(consensus_fatal * 100.0, 1),
+            "consensus_abs_delta_pct": round((consensus_fatal - base_fatal) * 100.0, 1),
             "cmf_citations": cites if cites else ["Baseline operational conditions maintained"]
         }
 
@@ -411,8 +417,11 @@ with res_col2:
         """, unsafe_allow_html=True)
 
     consensus_delta = causal_res['consensus_fatal_delta_pct']
-    c_color = "green" if consensus_delta < -1.5 else ("red" if consensus_delta > 1.5 else "blue")
-    c_badge = "Risk Reduced" if consensus_delta < -1.5 else ("Risk Elevated" if consensus_delta > 1.5 else "Neutral")
+    consensus_sim_fatal = causal_res.get('consensus_expected_fatal_pct', (0.5 * p_simulated[2] + 0.5 * p_baseline[2]) * 100.0)
+    consensus_abs_delta = causal_res.get('consensus_abs_delta_pct', consensus_sim_fatal - p_baseline[2] * 100.0)
+
+    c_color = "green" if consensus_delta < -2.0 else ("red" if consensus_delta > 2.0 else "blue")
+    c_badge = "Risk Reduced" if consensus_delta < -2.0 else ("Risk Elevated" if consensus_delta > 2.0 else "Neutral")
 
     st.markdown(f"""
     <div class="kmda-box" style="margin-bottom: 16px;">
@@ -420,41 +429,43 @@ with res_col2:
             <div class="kmda-inner-box" style="text-align: center;">
                 <div style="font-size: 0.72rem; color: var(--kmda-text-muted); text-transform: uppercase;">Segment Baseline</div>
                 <div style="font-size: 1.45rem; font-weight: 800; color: #EF4444;">{p_baseline[2]*100:.1f}%</div>
-                <span class="kmda-badge badge-red">Worst Crash</span>
+                <span class="kmda-badge badge-red">Worst-Case Incident</span>
             </div>
             <div class="kmda-inner-box" style="text-align: center;">
-                <div style="font-size: 0.72rem; color: var(--kmda-text-muted); text-transform: uppercase;">Simulated Scenario</div>
-                <div style="font-size: 1.45rem; font-weight: 800; color: #3B82F6;">{p_simulated[2]*100:.1f}%</div>
+                <div style="font-size: 0.72rem; color: var(--kmda-text-muted); text-transform: uppercase;">Consensus Simulated</div>
+                <div style="font-size: 1.45rem; font-weight: 800; color: #3B82F6;">{consensus_sim_fatal:.1f}%</div>
                 <span class="kmda-badge badge-blue">With Levers</span>
             </div>
         </div>
         <div class="kmda-inner-box" style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-                <div style="font-size: 0.75rem; color: var(--kmda-text-muted); font-weight: 600;">CONSENSUS RISK DELTA</div>
-                <div style="font-size: 1.25rem; font-weight: 800; color: var(--kmda-text-primary);">{consensus_delta:+.1f}%</div>
+                <div style="font-size: 0.75rem; color: var(--kmda-text-muted); font-weight: 600;">CONSENSUS RISK DELTA (DEVIATION FROM BASELINE)</div>
+                <div style="font-size: 1.35rem; font-weight: 800; color: var(--kmda-text-primary);">{consensus_delta:+.1f}%</div>
             </div>
             <span class="kmda-badge badge-{c_color}">{c_badge}</span>
         </div>
-        <div style="font-size: 0.72rem; color: var(--kmda-text-muted); margin-top: 8px; text-align: center;">
-            Blended: 50% Observational ML ({fatal_diff:+.1f}%) + 50% Empirical Causal CMF ({causal_res['causal_fatal_delta_pct']:+.1f}%)
+        <div style="font-size: 0.74rem; color: var(--kmda-text-muted); margin-top: 8px; text-align: center; line-height: 1.4;">
+            <b>Deviation from Baseline:</b> {consensus_delta:+.1f}% relative change ({consensus_abs_delta:+.1f} percentage points shift)<br>
+            <span style="opacity: 0.88;">Blended: 50% Observational ML ({causal_res['ml_fatal_delta_pct']:+.1f}%) + 50% Empirical CMF ({causal_res['causal_fatal_delta_pct']:+.1f}%)</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    if consensus_delta < -1.5 or causal_res['causal_fatal_delta_pct'] < -2.0:
-        st.success(f"[REDUCED] **Fatal Risk Reduced.** Consensus reduction: {abs(consensus_delta):.1f}%")
+    if consensus_delta < -2.0 or causal_res['causal_fatal_delta_pct'] < -2.0:
+        st.success(f"[REDUCED] **Fatal Risk Reduced by {abs(consensus_delta):.1f}% vs baseline** ({p_baseline[2]*100:.1f}% → {consensus_sim_fatal:.1f}%).")
         st.markdown("**Causal Evidence Base (AASHTO HSM / IRC):**")
         for cite in causal_res["cmf_citations"]:
             st.markdown(f"- *{cite}*")
-    elif consensus_delta > 1.5:
-        st.error(f"[INCREASED] **Fatal Crash Probability Increased by {consensus_delta:+.1f}%** vs baseline.")
+    elif consensus_delta > 2.0:
+        st.error(f"[INCREASED] **Fatal Crash Risk Elevated by {consensus_delta:+.1f}% vs baseline** ({p_baseline[2]*100:.1f}% → {consensus_sim_fatal:.1f}%).")
         st.markdown("**Warning:** Operational conditions (high speeds, lack of median barrier, or unlit darkness) elevate fatal risk.")
         for cite in causal_res["cmf_citations"]:
             st.markdown(f"- *{cite}*")
     else:
         st.info(
-            "Minimal net change detected. Interventions may be redundant with existing "
-            "conditions on this segment, or the baseline already reflects low fatal risk."
+            f"Baseline operational risk maintained within ±2% tolerance ({consensus_delta:+.1f}% deviation). "
+            "Interventions may be redundant with existing conditions on this segment, "
+            "or the baseline already reflects low fatal risk."
         )
 
     st.caption(
