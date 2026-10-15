@@ -1,6 +1,12 @@
 # Analytical Notebooks Guide
 
-This directory contains the sequential analytical workflow for researchers, competition judges, and KMDA technical officers:
+> **[CRITICAL NOTICE: SYNTHETIC DATA DISCLOSURE]**  
+> All notebooks and models in this repository execute on **statistically calibrated synthetic crash data** designed to mirror Ministry of Road Transport and Highways (MoRTH) accident distributions for the Kolkata Metropolitan Area.  
+> Official Kolkata Police First Information Report (FIR) logs and KMDA field databases have not yet been ingested. All findings, SHAP attributions, and blackspot rankings reflect simulated distributions for methodology demonstration and must not be used for physical civil deployment without operational validation.
+
+---
+
+This directory contains the sequential analytical workflow for researchers, transport planners, and KMDA technical officers:
 
 1. `01_data_audit_and_eda.ipynb`
    - Exploratory analysis of Kolkata crash records.
