@@ -24,6 +24,9 @@ folium>=0.15.0
 streamlit-folium>=0.15.0
 
 # API & Data Extraction
+fastapi>=0.100.0
+uvicorn>=0.22.0
+pydantic>=2.0.0
 requests>=2.31.0
 pyyaml>=6.0.0
 pyarrow>=14.0.0
