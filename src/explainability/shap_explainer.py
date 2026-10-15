@@ -1,11 +1,19 @@
-"""SHAP (SHapley Additive exPlanations) for Global & Local model interpretability."""
 import os
+import sys
+from pathlib import Path
 import joblib
 import shap
 import numpy as np
 import pandas as pd
 from typing import Dict, Any, List, Union
+
+# Ensure repository root is on sys.path for direct CLI script execution
+REPO_ROOT = str(Path(__file__).resolve().parent.parent.parent)
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
 from src.utils.logger import get_logger
+from src.utils.feature_names import to_display_name, to_simple_name
 
 logger = get_logger("shap_explainer")
 
@@ -79,6 +87,8 @@ class SeveritySHAPExplainer:
         for feat, val, s in zip(self.feature_names, x_row[0], fatal_row):
             contributions.append({
                 "feature": feat,
+                "simple_name": to_simple_name(feat),
+                "display_name": to_display_name(feat),
                 "value": float(val),
                 "shap_value": float(s),
                 "impact": "Increases Risk" if s > 0 else "Decreases Risk"
@@ -106,11 +116,13 @@ if __name__ == "__main__":
 
         print("\n--- Top 10 Global SHAP Drivers for Fatal Crashes ---")
         global_imp = explainer.get_global_feature_importance(df_sample)
-        print(global_imp.head(10).to_string(index=False))
+        global_imp_display = global_imp.head(10).copy()
+        global_imp_display["simple_name"] = global_imp_display["feature"].map(to_simple_name)
+        print(global_imp_display[["simple_name", "fatal_shap_importance"]].to_string(index=False))
 
         print("\n--- Local SHAP Waterfall Breakdown (Sample Crash #1) ---")
         first_instance = df_sample.iloc[0]
         local_drivers = explainer.explain_single_instance(first_instance)
         for d in local_drivers[:5]:
             sign = "+" if d["shap_value"] > 0 else ""
-            print(f" - {d['feature']:<25} = {d['value']:<8.2f} | SHAP: {sign}{d['shap_value']:.4f} ({d['impact']})")
+            print(f" - {d['simple_name']:<25} = {d['value']:<8.2f} | SHAP: {sign}{d['shap_value']:.4f} ({d['impact']})")
