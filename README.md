@@ -44,7 +44,6 @@ Road Accident Severity and Hotspot Analysis/
 │       └── 4_KMDA_Policy_Brief.py      # Tender-ready Top-20 blackspot priority action plan
 │
 ├── tests/                              # Pytest test suite
-├── docs/                               # Methodology whitepapers & briefs
 ├── run_pipeline.py                     # Master one-click end-to-end execution runner
 ├── requirements.txt                    # Pinned Python package dependencies
 ├── environment.yml                     # Conda geospatial environment specification
