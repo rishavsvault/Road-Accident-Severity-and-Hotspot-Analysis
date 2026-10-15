@@ -1,0 +1,9 @@
+# Best tuned hyperparameters discovered via Optuna optimization
+# Objective: 0.6 * fatal_recall + 0.4 * macro_f1 with SpatialGroupedCV
+n_estimators: 200
+max_depth: 5
+learning_rate: 0.024
+subsample: 0.886
+colsample_bytree: 0.891
+calibration_method: "isotonic"
+random_state: 42
