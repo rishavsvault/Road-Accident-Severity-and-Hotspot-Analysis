@@ -25,12 +25,22 @@ try:
 except ImportError:
     from components.disclaimer import render_disclaimer_banner, render_sidebar_disclaimer
 
+try:
+    from dashboard.components.ui_cards import (
+        inject_custom_css, render_infographic_kpi, create_radial_gauge, render_road_profile_cards
+    )
+except ImportError:
+    from components.ui_cards import (
+        inject_custom_css, render_infographic_kpi, create_radial_gauge, render_road_profile_cards
+    )
+
 st.set_page_config(page_title="Segment Deep Dive | KMDA", layout="wide")
+inject_custom_css()
 
 st.title("Segment Deep Dive & Explainable SHAP Analysis")
 render_disclaimer_banner("shap")
 render_sidebar_disclaimer()
-st.markdown("Inspect local SHAP drivers behind predicted crash severity on specific Kolkata road stretches.")
+st.markdown("Inspect local TreeSHAP drivers behind predicted crash severity on specific Kolkata road stretches.")
 
 model_path  = "data/processed/xgboost_severity_model.joblib"
 tiers_path  = "data/processed/segment_risk_tiers.csv"
@@ -40,7 +50,7 @@ if not os.path.exists(model_path) or not os.path.exists(tiers_path) or not os.pa
     st.error("Please run the pipeline first to train the model and generate feature datasets.")
     st.stop()
 
-# ── Cached resource loaders (prevents multi-second reload on each widget interaction) ──
+# ── Cached resource loaders ────────────────────────────────────────────────
 @st.cache_resource
 def load_model_and_explainer():
     clf = SeverityXGBoost.load_model(model_path)
@@ -65,14 +75,55 @@ selected_seg_id = st.selectbox(
 
 seg_data = df_segments[df_segments["segment_id"] == selected_seg_id].iloc[0]
 
-col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("Corridor", seg_data.get("corridor_name", "Unknown"))
-col2.metric("Priority Tier", seg_data.get("priority_tier", "N/A"))
-col3.metric("Risk Score", f"{seg_data.get('segment_risk_score', 0)} / 100")
-col4.metric("Total Crashes", f"{int(seg_data.get('total_crashes', 0))}")
-col5.metric("Fatal Crashes", f"{int(seg_data.get('fatal_crashes', 0))}", delta_color="inverse")
+# ── Top Infographic Header & Radial Risk Speedometer ───────────────────────
+hdr_left, hdr_right = st.columns([1.5, 1.0])
 
-st.markdown("---")
+with hdr_left:
+    tier = str(seg_data.get("priority_tier", "Low Priority"))
+    tier_badge_color = "badge-red" if "High" in tier else ("badge-amber" if "Medium" in tier else "badge-blue")
+    rank_val = seg_data.get("rank", "N/A")
+
+    st.markdown(f"""
+    <div class="kmda-box" style="margin-bottom: 12px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <span class="kmda-badge {tier_badge_color}">{tier}</span>
+            <span style="font-size: 0.80rem; font-weight: 700; color: var(--kmda-text-muted);">CITY RANK: #{rank_val}</span>
+        </div>
+        <div style="font-size: 1.55rem; font-weight: 800; font-family: 'Outfit', sans-serif; color: var(--kmda-text-primary); margin-bottom: 4px;">
+            {seg_data.get("corridor_name", "Unknown Corridor")}
+        </div>
+        <div style="font-size: 0.85rem; color: var(--kmda-text-muted); margin-bottom: 14px;">
+            <b>Segment ID:</b> <code>{selected_seg_id}</code> | <b>Zone:</b> {seg_data.get("spatial_zone_id", "N/A")} | <b>Length:</b> {int(seg_data.get("length_meters", 350))}m
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Physical cross-section cards
+    render_road_profile_cards(
+        speed_limit=float(seg_data.get("speed_limit", 50)),
+        lanes=float(seg_data.get("lanes", 4)),
+        has_median=int(seg_data.get("has_median", 0)),
+        is_lit=int(seg_data.get("is_lit", 1))
+    )
+
+with hdr_right:
+    risk_score = float(seg_data.get("segment_risk_score", 0.0))
+    fig_gauge = create_radial_gauge(risk_score, title="Composite Risk Score (0-100)", height=225)
+    st.plotly_chart(fig_gauge, use_container_width=True)
+
+    # Mini crash summary metrics
+    tot_c = int(seg_data.get("total_crashes", 0))
+    fat_c = int(seg_data.get("fatal_crashes", 0))
+    ped_c = int(seg_data.get("pedestrian_crashes", 0))
+    st.markdown(f"""
+    <div style="display: flex; gap: 8px; justify-content: center; margin-top: -15px;">
+        <span class="kmda-badge badge-slate">Total: {tot_c}</span>
+        <span class="kmda-badge badge-red">Fatal: {fat_c}</span>
+        <span class="kmda-badge badge-amber">VRU/Ped: {ped_c}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown('<div class="kmda-divider"></div>', unsafe_allow_html=True)
 
 # Find crashes associated with this segment
 seg_crashes = df_crashes[df_crashes["segment_id"] == selected_seg_id]
@@ -83,13 +134,11 @@ if len(seg_crashes) == 0:
         "Showing SHAP explanation from the nearest representative crash profile. "
         "This segment is **not confirmed safe** — low crash counts may reflect underreporting."
     )
-    # Use most similar crash profile (match highway type and speed limit)
     highway_match = df_crashes[
         df_crashes["segment_highway_type"] == seg_data.get("highway_type", "primary")
     ]
     sample_crash = highway_match.iloc[0] if len(highway_match) > 0 else df_crashes.iloc[0]
 else:
-    # Use the most severe crash on this segment as the representative
     sample_crash = seg_crashes.sort_values("severity_code", ascending=False).iloc[0]
 
 # Compute SHAP explanation
@@ -98,7 +147,7 @@ df_shap_all = pd.DataFrame(shap_drivers)
 
 # Causal vs Correlation Filter Toggle
 focus_causal = st.checkbox(
-    "Focus on Actionable Engineering & Physical Drivers (Exclude Non-Causal Confounders)",
+    "🎯 Focus on Actionable Engineering & Physical Drivers (Exclude Non-Causal Confounders)",
     value=True,
     help="Hides non-causal observational proxies (e.g. ambient temperature, trigonometric hour_cos/hour_sin, day of week) that correlate statistically but are not civil causes of crash severity."
 )
@@ -110,11 +159,11 @@ else:
 
 df_shap["display_feature"] = df_shap["feature"].map(to_display_name).fillna(df_shap["feature"])
 
-c_left, c_right = st.columns([1.2, 1.0])
+c_left, c_right = st.columns([1.25, 1.0])
 
 with c_left:
-    title_suffix = "(Actionable Engineering & Hazard Levers)" if focus_causal else "(All Observational Features)"
-    st.subheader(f"Local SHAP Drivers {title_suffix}")
+    title_suffix = "(Actionable Civil Levers)" if focus_causal else "(All Observational Features)"
+    st.subheader(f"📊 Local SHAP Drivers {title_suffix}")
     fig = px.bar(
         df_shap,
         x="shap_value",
@@ -122,28 +171,47 @@ with c_left:
         orientation="h",
         color="impact",
         color_discrete_map={"Increases Risk": "#EF4444", "Decreases Risk": "#10B981"},
-        labels={"shap_value": "SHAP Contribution to Fatal Crash Risk", "display_feature": "Actionable Risk Factor"},
-        title=f"Feature Contributions to Fatal Risk {title_suffix}"
+        labels={"shap_value": "SHAP Contribution to Fatal Crash Risk (Log-Odds)", "display_feature": "Identified Risk Factor"},
+        title=f"Feature Contributions to Predicted Severity"
     )
-    fig.update_layout(yaxis=dict(autorange="reversed"), height=420)
+    fig.update_layout(
+        yaxis=dict(autorange="reversed"),
+        height=380,
+        margin=dict(l=15, r=20, t=35, b=15),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        font=dict(family="Inter, sans-serif")
+    )
     st.plotly_chart(fig, use_container_width=True)
     st.caption(
-        "Positive bars (red) increase the predicted probability of a **Fatal** outcome. "
-        "Negative bars (green) reduce it. Measured in log-odds units via TreeSHAP."
+        "🔴 **Red bars** push the predicted probability toward **Fatal / Grievous**. "
+        "🟢 **Green bars** exert a mitigating protective effect."
     )
 
 with c_right:
-    st.subheader("Prescribed KMDA Engineering Countermeasures")
+    st.subheader("🛠️ Prescribed KMDA Engineering Countermeasures")
     recommended = engine.recommend_for_segment(seg_data.to_dict(), shap_drivers)
     if not recommended:
         st.success("No immediate structural civil interventions triggered for this segment.")
     for rec in recommended:
-        with st.container():
-            st.markdown(f"**Action:** `{rec['recommended_action']}`")
-            st.caption(f"Authority: {rec['authority']} | Priority: {rec['priority']} | Cost: {rec['estimated_cost_tier']}")
-            if "cmf_effect" in rec:
-                st.caption(f"Causal Impact: *{rec['cmf_effect']}*")
-            st.markdown("---")
+        prio_color = "act-high" if rec['priority'] == "High" else ("act-med" if rec['priority'] == "Medium" else "act-low")
+        cost_badge_color = "badge-red" if "High" in rec['estimated_cost_tier'] else ("badge-amber" if "Medium" in rec['estimated_cost_tier'] else "badge-green")
+
+        st.markdown(f"""
+        <div class="kmda-action-card {prio_color}">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span class="kmda-badge badge-blue">{rec['authority']}</span>
+                <span class="kmda-badge {cost_badge_color}">Cost: {rec['estimated_cost_tier']}</span>
+            </div>
+            <div style="font-weight: 700; font-size: 0.92rem; color: var(--kmda-text-primary); margin-bottom: 4px;">
+                {rec['recommended_action']}
+            </div>
+            <div style="font-size: 0.78rem; color: var(--kmda-text-muted);">
+                <b>Expected Safety Impact:</b> <i>{rec.get('cmf_effect', 'Reduces fatal conflict exposure')}</i>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # Crash breakdown for this segment
 if len(seg_crashes) > 0:
@@ -196,6 +264,13 @@ if os.path.exists(global_shap_path):
         color="fatal_shap_importance",
         color_continuous_scale="Reds"
     )
-    fig_global.update_layout(yaxis=dict(autorange="reversed"), height=380, showlegend=False)
+    fig_global.update_layout(
+        yaxis=dict(autorange="reversed"),
+        height=380,
+        showlegend=False,
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Inter, sans-serif")
+    )
     st.plotly_chart(fig_global, use_container_width=True)
 

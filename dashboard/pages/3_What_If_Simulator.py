@@ -35,7 +35,13 @@ try:
 except ImportError:
     from components.disclaimer import render_disclaimer_banner, render_sidebar_disclaimer
 
+try:
+    from dashboard.components.ui_cards import inject_custom_css, render_infographic_kpi
+except ImportError:
+    from components.ui_cards import inject_custom_css, render_infographic_kpi
+
 st.set_page_config(page_title="What-If Simulator | KMDA", layout="wide")
+inject_custom_css()
 
 st.title("What-If Policy & Infrastructure Simulator")
 render_disclaimer_banner("simulator")
@@ -305,7 +311,10 @@ with res_col1:
     ))
     fig.update_layout(
         barmode="group", yaxis_title="Probability (%)",
-        height=380, margin=dict(l=20, r=20, t=30, b=20)
+        height=380, margin=dict(l=20, r=20, t=30, b=20),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Inter, sans-serif")
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -372,15 +381,65 @@ with res_col2:
         p_sim=p_simulated
     )
 
-    st.markdown("### Risk Impact Summary")
-    m1, m2 = st.columns(2)
-    m1.metric("ML Model Fatal Δ", f"{fatal_diff:+.1f}%",
-              delta=f"{fatal_diff:+.1f}%", delta_color="inverse")
-    m2.metric("Causal CMF Fatal Δ", f"{causal_res['causal_fatal_delta_pct']:+.1f}%",
-              delta=f"{causal_res['causal_fatal_delta_pct']:+.1f}%", delta_color="inverse")
+    st.markdown("### 📈 Risk Impact & Causal Summary")
+
+    # Dynamic countermeasure change detection badges
+    applied_tags = []
+    base_v = float(baseline_row.get("speed_limit", baseline_row.get("feat_speed_limit", 50)))
+    if speed_limit < base_v:
+        applied_tags.append(f'<span class="kmda-badge badge-green">✅ Speed Reduced: {int(base_v)} → {int(speed_limit)} km/h</span>')
+    elif speed_limit > base_v:
+        applied_tags.append(f'<span class="kmda-badge badge-red">⚠️ Speed Raised: {int(base_v)} → {int(speed_limit)} km/h</span>')
+
+    base_l = int(baseline_row.get("is_lit", baseline_row.get("feat_is_lit", 1)))
+    if is_lit == 1 and base_l == 0:
+        applied_tags.append('<span class="kmda-badge badge-green">✅ High-Mast LED Lighting Added</span>')
+    elif is_lit == 0 and base_l == 1:
+        applied_tags.append('<span class="kmda-badge badge-red">⚠️ Unlit / Dim Lighting Specified</span>')
+
+    base_m = int(baseline_row.get("has_median", baseline_row.get("feat_has_median", 0)))
+    if has_median == 1 and base_m == 0:
+        applied_tags.append('<span class="kmda-badge badge-green">✅ Concrete Crash Barrier Installed</span>')
+    elif has_median == 0 and base_m == 1:
+        applied_tags.append('<span class="kmda-badge badge-red">⚠️ Median Barrier Removed</span>')
+
+    if applied_tags:
+        st.markdown(f"""
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+            {' '.join(applied_tags)}
+        </div>
+        """, unsafe_allow_html=True)
 
     consensus_delta = causal_res['consensus_fatal_delta_pct']
-    st.markdown(f"**Consensus Risk Delta:** `{consensus_delta:+.1f}%` *(50% Observational ML + 50% Empirical Causal CMF)*")
+    c_color = "green" if consensus_delta < -1.5 else ("red" if consensus_delta > 1.5 else "blue")
+    c_badge = "Risk Reduced" if consensus_delta < -1.5 else ("Risk Elevated" if consensus_delta > 1.5 else "Neutral")
+
+    st.markdown(f"""
+    <div class="kmda-box" style="margin-bottom: 16px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div class="kmda-inner-box" style="text-align: center;">
+                <div style="font-size: 0.72rem; color: var(--kmda-text-muted); text-transform: uppercase;">Segment Baseline</div>
+                <div style="font-size: 1.45rem; font-weight: 800; color: #EF4444;">{p_baseline[2]*100:.1f}%</div>
+                <span class="kmda-badge badge-red">Worst Crash</span>
+            </div>
+            <div class="kmda-inner-box" style="text-align: center;">
+                <div style="font-size: 0.72rem; color: var(--kmda-text-muted); text-transform: uppercase;">Simulated Scenario</div>
+                <div style="font-size: 1.45rem; font-weight: 800; color: #3B82F6;">{p_simulated[2]*100:.1f}%</div>
+                <span class="kmda-badge badge-blue">With Levers</span>
+            </div>
+        </div>
+        <div class="kmda-inner-box" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div style="font-size: 0.75rem; color: var(--kmda-text-muted); font-weight: 600;">CONSENSUS RISK DELTA</div>
+                <div style="font-size: 1.25rem; font-weight: 800; color: var(--kmda-text-primary);">{consensus_delta:+.1f}%</div>
+            </div>
+            <span class="kmda-badge badge-{c_color}">{c_badge}</span>
+        </div>
+        <div style="font-size: 0.72rem; color: var(--kmda-text-muted); margin-top: 8px; text-align: center;">
+            Blended: 50% Observational ML ({fatal_diff:+.1f}%) + 50% Empirical Causal CMF ({causal_res['causal_fatal_delta_pct']:+.1f}%)
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     if consensus_delta < -1.5 or causal_res['causal_fatal_delta_pct'] < -2.0:
         st.success(f"[REDUCED] **Fatal Risk Reduced.** Consensus reduction: {abs(consensus_delta):.1f}%")
@@ -399,9 +458,7 @@ with res_col2:
         )
 
     st.caption(
-        f"Baseline Fatal P: **{p_baseline[2]*100:.1f}%** -> "
-        f"Simulated Fatal P: **{p_simulated[2]*100:.1f}%** | "
-        f"Calibrated XGBoost blended with AASHTO HSM Crash Modification Factors."
+        f"Calibrated XGBoost blended with AASHTO HSM Crash Modification Factors (CMFs)."
     )
 
 with st.expander("🔬 Transportation Data Science Note: Why does raw ML sometimes show higher fatal risk when street lights are present?", expanded=False):

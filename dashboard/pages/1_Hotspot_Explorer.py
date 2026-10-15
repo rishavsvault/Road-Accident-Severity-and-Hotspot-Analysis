@@ -14,13 +14,20 @@ if str(_DASHBOARD_DIR) not in sys.path:
 import streamlit as st
 import pandas as pd
 import pydeck as pdk
+import plotly.express as px
 
 try:
     from dashboard.components.disclaimer import render_disclaimer_banner, render_sidebar_disclaimer
 except ImportError:
     from components.disclaimer import render_disclaimer_banner, render_sidebar_disclaimer
 
+try:
+    from dashboard.components.ui_cards import inject_custom_css, render_infographic_kpi
+except ImportError:
+    from components.ui_cards import inject_custom_css, render_infographic_kpi
+
 st.set_page_config(page_title="Hotspot Explorer | KMDA", layout="wide")
+inject_custom_css()
 
 st.title("Kolkata Road Segment Hotspot Explorer")
 render_disclaimer_banner("hotspots")
@@ -43,16 +50,16 @@ def load_segments():
 df = load_segments()
 
 # Sidebar filters
-st.sidebar.header("Filter Segments")
+st.sidebar.header("🔍 Filter Road Segments")
 tier_options = ["All"] + sorted(df["priority_tier"].dropna().unique().tolist()) if "priority_tier" in df.columns else ["All"]
 selected_tier = st.sidebar.selectbox("Priority Tier", tier_options)
 
 zone_options = ["All"] + sorted(df["spatial_zone_id"].dropna().unique().tolist()) if "spatial_zone_id" in df.columns else ["All"]
-selected_zone = st.sidebar.selectbox("Planning Zone", zone_options)
+selected_zone = st.sidebar.selectbox("KMDA Planning Zone", zone_options)
 
 corridor_options = ["All"] + sorted(df["corridor_name"].dropna().unique().tolist()) if "corridor_name" in df.columns else ["All"]
-selected_corridor = st.sidebar.selectbox("Corridor", corridor_options)
-show_zero = st.sidebar.checkbox("Show segments with zero crashes (Unmonitored)", value=True)
+selected_corridor = st.sidebar.selectbox("Corridor Filter", corridor_options)
+show_zero = st.sidebar.checkbox("Include unmonitored segments (0 crashes)", value=True)
 
 # Filter logic
 filtered_df = df.copy()
@@ -65,7 +72,51 @@ if selected_corridor != "All" and "corridor_name" in filtered_df.columns:
 if not show_zero and "total_crashes" in filtered_df.columns:
     filtered_df = filtered_df[filtered_df["total_crashes"] > 0]
 
-st.markdown(f"**Displaying {len(filtered_df)} of {len(df)} road segments.**")
+# Dynamic Infographic Summary KPIs
+f_segs   = len(filtered_df)
+f_high   = int((filtered_df["priority_tier"] == "High Priority").sum()) if "priority_tier" in filtered_df.columns else 0
+f_fatal  = int(filtered_df["fatal_crashes"].sum()) if "fatal_crashes" in filtered_df.columns else 0
+f_mvkt   = float(filtered_df["two_year_mvkt"].sum()) if "two_year_mvkt" in filtered_df.columns else 0.0
+
+hk1, hk2, hk3, hk4 = st.columns(4)
+with hk1:
+    render_infographic_kpi(
+        title="Segments in View",
+        value=f"{f_segs:,}",
+        subtitle=f"Of {len(df)} mapped segments",
+        icon="🛣️",
+        color="blue",
+        delta_badge="Filtered"
+    )
+with hk2:
+    render_infographic_kpi(
+        title="High-Priority Blackspots",
+        value=f"{f_high:,}",
+        subtitle="Requiring immediate civil work",
+        icon="🚨",
+        color="red",
+        delta_badge="Critical"
+    )
+with hk3:
+    render_infographic_kpi(
+        title="Fatalities Recorded",
+        value=f"{f_fatal:,}",
+        subtitle="On filtered road stretches",
+        icon="⚠️",
+        color="amber",
+        delta_badge="Life Hazard"
+    )
+with hk4:
+    render_infographic_kpi(
+        title="2-Year Traffic Exposure",
+        value=f"{f_mvkt:,.1f} M-km",
+        subtitle="Vehicle travel exposure (MVKT)",
+        icon="🚗",
+        color="green",
+        delta_badge="Exposure Base"
+    )
+
+st.markdown('<div class="kmda-divider"></div>', unsafe_allow_html=True)
 
 # Color mapping — zero-crash segments shown in grey to distinguish from true Low Priority
 def get_color(row):
@@ -122,17 +173,62 @@ deck = pdk.Deck(
     map_style="light"
 )
 
+# Render Pydeck 3D Map
 st.pydeck_chart(deck, use_container_width=True)
 
-# Legend
-with st.expander("Map Legend & Technical Notes"):
-    col1, col2, col3, col4 = st.columns(4)
-    col1.markdown("**High Priority (Red)**: Top 15% risk; immediate civil action required")
-    col2.markdown("**Medium Priority (Orange)**: Preventive maintenance zone")
-    col3.markdown("**Low Priority (Blue)**: Baseline monitoring only")
-    col4.markdown("**Unmonitored (Grey)**: Zero crash records in study period (not certified safe)")
+# Visual Legend Bar
+st.markdown("""
+<div class="kmda-box" style="display: flex; gap: 14px; flex-wrap: wrap; align-items: center; justify-content: center; padding: 10px 16px; margin-top: 10px; margin-bottom: 20px;">
+    <span style="font-size: 0.82rem; font-weight: 700; color: var(--kmda-text-muted);">MAP LEGEND:</span>
+    <span class="kmda-badge badge-red">🔴 High Priority (Top 15% Risk - Action Needed)</span>
+    <span class="kmda-badge badge-amber">🟠 Medium Priority (Preventive Action)</span>
+    <span class="kmda-badge badge-blue">🔵 Low Priority (Baseline Monitoring)</span>
+    <span class="kmda-badge badge-slate">⚪ Unmonitored (0 Crashes Logged)</span>
+</div>
+""", unsafe_allow_html=True)
 
-st.subheader("Segment Risk Ranks (AASHTO Highway Safety Manual & Empirical Bayes)")
+# ── Infographic Corridor Leaderboard ───────────────────────────────────────
+if len(filtered_df) > 0 and "segment_risk_score" in filtered_df.columns:
+    st.markdown('<div class="kmda-divider"></div>', unsafe_allow_html=True)
+    st.subheader("📊 Top 10 Blackspot Segments in Selected Filter")
+    st.caption("Visual ranking of segments sorted by composite risk index (0–100 scale).")
+
+    top10_filtered = filtered_df.sort_values("segment_risk_score", ascending=False).head(10).copy()
+    top10_filtered["label"] = top10_filtered["segment_id"] + " (" + top10_filtered["corridor_name"].str[:22] + ")"
+
+    fig_bar = px.bar(
+        top10_filtered.sort_values("segment_risk_score", ascending=True),
+        x="segment_risk_score",
+        y="label",
+        orientation="h",
+        color="priority_tier",
+        color_discrete_map={
+            "High Priority": "#DC2626",
+            "Medium Priority": "#F59E0B",
+            "Low Priority / Baseline": "#3B82F6",
+            "Unmonitored (No Data)": "#94A3B8"
+        },
+        text=top10_filtered.sort_values("segment_risk_score", ascending=True)["segment_risk_score"].apply(lambda v: f"{v:.1f}"),
+        labels={"segment_risk_score": "Composite Risk Score (0-100)", "label": "Segment ID & Corridor"}
+    )
+    fig_bar.update_traces(textposition="outside")
+    fig_bar.update_layout(
+        xaxis=dict(range=[0, 105]),
+        yaxis=dict(title=""),
+        height=360,
+        margin=dict(l=15, r=25, t=10, b=10),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        font=dict(family="Inter, sans-serif")
+    )
+    st.plotly_chart(fig_bar, use_container_width=True)
+
+st.markdown('<div class="kmda-divider"></div>', unsafe_allow_html=True)
+
+# ── Interactive Filterable Segment Table ────────────────────────────────────
+st.subheader("📋 Segment Risk Ranks & Safety Improvement Metrics")
+st.caption("Derived from AASHTO Highway Safety Manual (HSM) Safety Performance Functions & Empirical Bayes (EB) smoothing.")
 display_cols = [c for c in [
     "rank", "segment_id", "corridor_name", "spatial_zone_id",
     "priority_tier", "segment_risk_score", "total_crashes",
@@ -147,7 +243,7 @@ if os.path.exists(moran_path):
     import json
     with open(moran_path, "r") as f:
         moran = json.load(f)
-    with st.expander("Spatial Autocorrelation Diagnostics (Global Moran's I)"):
+    with st.expander("🔬 Spatial Autocorrelation Diagnostics (Global Moran's I)"):
         mc1, mc2, mc3 = st.columns(3)
         mc1.metric("Global Moran's I", f"{moran.get('morans_i', 0.0):.4f}")
         mc2.metric("Spatial Z-Score", f"{moran.get('z_score', 0.0):.2f}")
