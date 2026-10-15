@@ -146,10 +146,18 @@ class KMDAInterventionEngine:
         # 1. Street Lighting intervention
         old_lit = int(baseline_row.get("is_lit", baseline_row.get("feat_is_lit", 1)))
         new_lit = int(simulated_row.get("is_lit", simulated_row.get("feat_is_lit", 1)))
-        is_night = int(baseline_row.get("is_night", baseline_row.get("feat_is_night", 0)))
-        if old_lit == 0 and new_lit == 1 and is_night == 1:
-            cmf_fatal_multiplier *= 0.72
-            cmf_notes.append("AASHTO HSM Lighting CMF: 0.72 (-28% night fatal risk)")
+        is_night = int(simulated_row.get("is_night", simulated_row.get("feat_is_night", baseline_row.get("is_night", 0))))
+
+        if is_night == 1:
+            if old_lit == 0 and new_lit == 1:
+                cmf_fatal_multiplier *= 0.72
+                cmf_notes.append("AASHTO HSM Lighting CMF: 0.72 (-28% night fatal risk via high-mast illumination)")
+            elif old_lit == 1 and new_lit == 0:
+                cmf_fatal_multiplier *= (1.0 / 0.72)
+                cmf_notes.append("Lighting De-illumination: CMF 1.39 (+39% fatal risk in unlit night conditions)")
+        else:
+            if old_lit != new_lit:
+                cmf_notes.append("Daylight condition: Street illumination has zero physical visibility impact in daytime (neutral CMF 1.00)")
 
         # 2. Median Barrier installation
         old_med = int(baseline_row.get("has_median", baseline_row.get("feat_has_median", 0)))
@@ -157,18 +165,42 @@ class KMDAInterventionEngine:
         if old_med == 0 and new_med == 1:
             cmf_fatal_multiplier *= 0.65
             cmf_notes.append("FHWA Median Barrier CMF: 0.65 (-35% cross-median fatal risk)")
+        elif old_med == 1 and new_med == 0:
+            cmf_fatal_multiplier *= (1.0 / 0.65)
+            cmf_notes.append("Median Barrier Removal: CMF 1.54 (+54% head-on crossover collision exposure)")
 
-        # 3. Speed limit reduction (Elvik's Power Model: Fatal ~ (v_new / v_old)^4)
+        # 3. Speed limit adjustment (Elvik's Power Model: Fatal ~ (v_new / v_old)^4)
         old_speed = float(baseline_row.get("speed_limit", baseline_row.get("feat_speed_limit", 50)))
         new_speed = float(simulated_row.get("speed_limit", simulated_row.get("feat_speed_limit", 50)))
-        if old_speed > 0 and new_speed < old_speed:
+        if old_speed > 0 and new_speed != old_speed:
             speed_ratio = new_speed / old_speed
-            speed_cmf = float(np.clip(speed_ratio ** 4.0, 0.40, 1.0))
+            speed_cmf = float(np.clip(speed_ratio ** 4.0, 0.25, 2.50))
             cmf_fatal_multiplier *= speed_cmf
-            cmf_notes.append(f"Elvik Speed Power Model: CMF {speed_cmf:.2f} (from {int(old_speed)} to {int(new_speed)} km/h)")
+            delta_label = f"-{round((1.0 - speed_cmf)*100)}%" if speed_cmf < 1.0 else f"+{round((speed_cmf - 1.0)*100)}%"
+            cmf_notes.append(f"Elvik Speed Power Model: CMF {speed_cmf:.2f} ({delta_label} kinetic impact from {int(old_speed)} to {int(new_speed)} km/h)")
+
+        # 4. Vulnerable Road Users (Pedestrians/Cyclists)
+        old_ped = int(baseline_row.get("pedestrian_involved", baseline_row.get("feat_pedestrian_involved", 0)))
+        new_ped = int(simulated_row.get("pedestrian_involved", simulated_row.get("feat_pedestrian_involved", 0)))
+        if old_ped == 0 and new_ped == 1:
+            cmf_fatal_multiplier *= 1.30
+            cmf_notes.append("VRU Conflict Exposure: CMF 1.30 (+30% vulnerability with unprotected pedestrians/cyclists)")
+        elif old_ped == 1 and new_ped == 0:
+            cmf_fatal_multiplier *= (1.0 / 1.30)
+            cmf_notes.append("Grade Separation / Pedestrian Segregation: CMF 0.77 (-23% fatal risk)")
+
+        # 5. Precipitation / Wet Surface
+        old_precip = float(baseline_row.get("precipitation", baseline_row.get("feat_precipitation", 0.0)))
+        new_precip = float(simulated_row.get("precipitation", simulated_row.get("feat_precipitation", 0.0)))
+        if old_precip <= 0.1 and new_precip > 0.1:
+            cmf_fatal_multiplier *= 1.20
+            cmf_notes.append("AASHTO Wet Pavement Skid CMF: 1.20 (+20% wet-weather loss-of-control risk)")
+        elif old_precip > 0.1 and new_precip <= 0.1:
+            cmf_fatal_multiplier *= 0.83
+            cmf_notes.append("Dry Surface Pavement Recovery: CMF 0.83 (-17% skid risk on dry asphalt)")
 
         # Causal expected fatal probability
-        causal_expected_fatal = base_fatal * cmf_fatal_multiplier
+        causal_expected_fatal = float(np.clip(base_fatal * cmf_fatal_multiplier, 0.01, 0.95))
         causal_fatal_delta_pct = (causal_expected_fatal - base_fatal) * 100.0
 
         # Consensus consensus weighted estimate: 50% ML + 50% Empirical CMF

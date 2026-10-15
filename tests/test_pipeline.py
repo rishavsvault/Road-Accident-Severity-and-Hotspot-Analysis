@@ -61,6 +61,20 @@ def test_intervention_engine():
     assert "INT_SPEED_CALMING" in ids
 
 
+def test_causal_countermeasure_impact():
+    engine = KMDAInterventionEngine()
+    b_dict = {"is_lit": 0, "speed_limit": 60, "has_median": 0, "is_night": 1}
+    s_dict = {"is_lit": 1, "speed_limit": 40, "has_median": 1, "is_night": 1}
+    p_base = np.array([0.20, 0.30, 0.50])
+    p_sim = np.array([0.40, 0.40, 0.20])
+
+    res = engine.estimate_causal_countermeasure_impact(b_dict, s_dict, p_base, p_sim)
+    assert "cmf_compound_multiplier" in res
+    assert res["cmf_compound_multiplier"] < 1.0  # Compound reduction
+    assert res["causal_fatal_delta_pct"] < 0
+    assert len(res["cmf_citations"]) >= 3
+
+
 def test_spatial_grouped_cv():
     from src.models.spatial_cv import SpatialGroupedCV
     df = pd.DataFrame({
