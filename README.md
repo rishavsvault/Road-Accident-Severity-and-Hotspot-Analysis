@@ -96,17 +96,63 @@ python -m src.explainability.shap_explainer
 
 ---
 
-## Core Methodology & Technical Highlights
+---
 
-1. **Polygon Point-in-Polygon Filtering:** Replaces rectangular bounding-box cropping with a multi-vertex administrative boundary polygon tracing the Kolkata Municipal Corporation (KMC) perimeter.
-2. **Multi-Station Weather Interpolation:** Interpolates precipitation, visibility, and temperature at each crash's exact GPS coordinate via 2D Inverse Distance Weighting (IDW) across four metropolitan meteorological stations (Alipore, Dum Dum, Salt Lake, Behala).
-3. **Traffic & Population Exposure Normalization:** Normalizes segment risk by Annual Average Daily Traffic (AADT), 2-year Million Vehicle Kilometers Traveled (MVKT), and ward population density rather than raw crash counts.
-4. **Spatial Grouped Cross-Validation:** Partitioned strictly by geographic zone (`SpatialGroupKFold`) to prevent spatial autocorrelation leakage.
-5. **Probability Calibration (Isotonic / Platt):** Calibrates predicted probabilities via `CalibratedClassifierCV` and exports reliability curves across all three severity tiers.
-6. **Ordinal XGBoost Model Comparison:** Benchmarks standard multiclass XGBoost against an ordinal cumulative binary architecture enforcing severity monotonicity ($P(\text{Fatal}) \le P(\ge \text{Grievous})$).
-7. **Severe Error Penalization & PR-AUC:** Optimizes Fatal-Class Recall and Precision-Recall AUC (PR-AUC) to penalize false optimism on rare fatal accidents.
-8. **SHAP-to-KMDA Intervention Engine:** Directly translates positive SHAP risk drivers into actionable civil engineering fixes:
-   - High speed + high risk: Speed calming & automated enforcement cameras.
-   - Night + unlit: High-mast LED illumination upgrade.
-   - High pedestrian conflict: Tabletop raised crosswalks / Foot Overbridges (FOB).
-   - Wet weather / monsoon: High-friction micro-surfacing (HFST) and curb drainage.
+## Methodology Whitepaper & Mathematical Framework
+
+### 1. Problem Formulation
+India accounts for over 11% of global road traffic fatalities. Conventional municipal intervention relies heavily on aggregate crash tally frequencies, often leading to retroactive, suboptimal countermeasure allocation. This platform develops an end-to-end explainable machine learning and spatial intelligence architecture tailored for the **Kolkata Metropolitan Development Authority (KMDA)**.
+
+### 2. Spatial Discretization & Network Segmentation
+Rather than treating roads as continuous infinite geometries or treating urban space as an unconstrained 2D plane, roads are segmented into discrete analytical units $S_i$ of 200–500 meters, split at junctions and geometry bends.
+
+### 3. 1D Network-Constrained Kernel Density Estimation (NetKDE)
+Standard planar 2D KDE produces spatial bleeding into unnavigable spaces (e.g., the Hooghly River, Maidan parklands, East Kolkata Wetlands). We implement 1D Network-constrained KDE along graph edges:
+
+$$KDE(S_i) = \frac{1}{|S_i|} \sum_{c \in C, \, d(c, S_i) \le h} w(c) \cdot \frac{3}{4}\left(1 - \left(\frac{d(c, S_i)}{h}\right)^2\right)$$
+
+where:
+- $h = 400$ meters (search bandwidth along network distance)
+- $w(c)$ is the severity weighting: $\text{Fatal} = 10$, $\text{Grievous} = 3$, $\text{Minor} = 1$
+- $|S_i|$ is the segment length in meters.
+
+### 4. Length-Normalized & Exposure-Adjusted Segment Risk Score (0–100)
+To establish an intuitive, comparable metric across road corridors of variable geometries, the raw severity-weighted crash density per 100 meters is standardized onto a continuous 0–100 scale:
+
+$$\text{Raw Score}(S_i) = \frac{10 \cdot N_{\text{fatal}} + 3 \cdot N_{\text{grievous}} + 1 \cdot N_{\text{minor}}}{\max(50, |S_i|) / 100}$$
+
+$$\text{Standardized Risk Score}(S_i) = \left( \frac{\text{Raw Score}(S_i)}{\max_{j} \text{Raw Score}(S_j)} \right) \times 100 \in [0, 100]$$
+
+Where:
+- **0.0**: Baseline corridor with zero crash occurrences.
+- **100.0**: Peak hazardous blackspot corridor in the KMDA network.
+- **Priority Tiers**: High ($\ge 85^{\text{th}}$ percentile), Medium ($50^{\text{th}}–85^{\text{th}}$ percentile), Low ($< 50^{\text{th}}$ percentile).
+
+### 5. Statistical Hotspot Significance: Getis-Ord $G_i^*$ & Moran's $I$
+Local spatial clustering is measured using the Getis-Ord $G_i^*$ statistic:
+
+$$G_i^* = \frac{\sum_{j=1}^n w_{ij} x_j - \bar{X}\sum_{j=1}^n w_{ij}}{S \sqrt{\frac{n\sum_{j=1}^n w_{ij}^2 - (\sum_{j=1}^n w_{ij})^2}{n - 1}}}$$
+
+Segments with $Z(G_i^*) \ge +1.96$ ($p < 0.05$) are classified as statistically significant blackspots. Global spatial autocorrelation is validated via Global Moran's $I$.
+
+### 6. Severity Modeling: Calibrated XGBoost with Spatial Grouped Cross-Validation
+To prevent spatial data leakage where proximate crashes on the same corridor artificially inflate model performance, validation is partitioned via **Spatial Grouped K-Fold** based on planning zones / police jurisdictions:
+
+$$\text{Train}_k \cap \text{Val}_k = \emptyset \quad \forall \text{ Geographic Zones}$$
+
+Evaluation strictly monitors:
+- **Macro-F1 & PR-AUC:** Balanced capability across all three severity classes, penalizing false optimism on rare fatal accidents.
+- **Fatal-Class Recall:** Minimizes false negatives on life-threatening incidents.
+- **Quadratic Weighted Kappa (QWK):** Quadradically penalizes extreme ordinal errors (predicting minor when actual was fatal).
+- **Probability Calibration (Isotonic Regression):** Calibrates predicted probabilities via `CalibratedClassifierCV` to ensure empirical reliability.
+
+### 7. Explainability & Civil Countermeasures Mapping
+Using TreeSHAP, Shapley values quantify the exact marginal contribution of road and environmental features ($x_j$):
+
+$$\phi_j(x) = \sum_{S \subseteq F \setminus \{j\}} \frac{|S|!(|F| - |S| - 1)!}{|F|!} \left( f_x(S \cup \{j\}) - f_x(S) \right)$$
+
+Positive SHAP attributions for fatal outcomes are algorithmically translated by the `KMDAInterventionEngine` into municipal civil engineering fixes:
+- **High speed + high risk**: Speed calming & automated enforcement cameras.
+- **Night + unlit**: High-mast smart LED illumination upgrade.
+- **High pedestrian conflict**: Tabletop raised crosswalks / Foot Overbridges (FOB).
+- **Wet weather / monsoon**: High-friction micro-surfacing (HFST) and curb drainage.
