@@ -3,13 +3,14 @@ model:
   objective: "multi:softprob"
   eval_metric: "mlogloss"
   random_state: 42
-  n_estimators: 250
+  n_estimators: 200
   max_depth: 5
-  learning_rate: 0.05
-  subsample: 0.85
-  colsample_bytree: 0.80
+  learning_rate: 0.024
+  subsample: 0.886
+  colsample_bytree: 0.891
   min_child_weight: 3
   gamma: 0.1
+  calibration_method: "isotonic"
 
 cross_validation:
   strategy: "SpatialGroupKFold"
@@ -17,13 +18,13 @@ cross_validation:
   group_column: "spatial_zone_id"
 
 class_balancing:
-  method: "sample_weight" # sample_weight or class_weight
+  method: "sample_weight"
   custom_weights:
     0: 1.0
     1: 3.5
     2: 8.0
 
 optuna:
-  n_trials: 35
+  n_trials: 25
   timeout_seconds: 600
   metric: "fatal_recall"  # maximize fatal-class recall while constraining macro-f1
