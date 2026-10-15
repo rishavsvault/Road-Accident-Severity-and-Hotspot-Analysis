@@ -65,6 +65,8 @@ __pycache__/
 *.osm
 .osmnet_cache/
 *.pbf
+cache/
+scratch/
 
 # ==========================================
 # Logs & Diagnostics
